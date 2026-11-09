@@ -1,0 +1,6 @@
+{
+  "name": "Google Agent & Multi-Account ChromeOS Hub",
+  "description": "Krachtige Google AI Agent met naadloos beheer voor meerdere Google-accounts en -sessies, geoptimaliseerd voor Chromebooks met een high-performance cache-architectuur.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
