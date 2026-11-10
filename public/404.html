@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Agent Hub</title>
+    <script>
+      // Single Page App redirect for GitHub Pages
+      sessionStorage.redirect = location.href;
+      var repo = location.pathname.split('/')[1] || '';
+      var target = repo ? '/' + repo + '/' : '/';
+      location.replace(target);
+    </script>
+  </head>
+  <body>
+    <p style="font-family:sans-serif;text-align:center;padding:40px;">Doorsturen naar applicatie...</p>
+  </body>
+</html>

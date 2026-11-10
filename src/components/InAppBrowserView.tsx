@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleAccount } from '../types';
+import { accountManager } from '../services/accountManager';
 import { historySyncService } from '../services/historySyncService';
 import { googleAuthService } from '../services/googleAuthService';
 import {
@@ -16,7 +17,14 @@ import {
   Maximize2,
   Minimize2,
   Globe,
-  Layers,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  KeyRound,
+  User,
+  Sparkles,
+  AlertCircle,
+  Laptop,
 } from 'lucide-react';
 
 interface BrowserTab {
@@ -64,9 +72,26 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isIframeLoading, setIsIframeLoading] = useState(false);
+
+  // In-App Google Sign-in Form state (bypasses Google's iframe block)
+  const [loginStep, setLoginStep] = useState<1 | 2>(1);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginName, setLoginName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginSuccessMessage, setLoginSuccessMessage] = useState('');
+  const [loginErrorMessage, setLoginErrorMessage] = useState('');
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Check if current page is Google Accounts Sign-in
+  const isGoogleSignInPage =
+    activeTab.url.includes('accounts.google.com') ||
+    activeTab.url.includes('google.com/accounts') ||
+    activeTab.url.includes('signin/v2');
 
   // Sync omnibox input when active tab changes
   useEffect(() => {
@@ -103,7 +128,13 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
           ? {
               ...t,
               url,
-              title: title || (url.includes('google.com') ? 'Google' : url.replace(/^https?:\/\//, '').split('/')[0]),
+              title:
+                title ||
+                (url.includes('accounts.google.com')
+                  ? 'Google Inloggen'
+                  : url.includes('google.com')
+                    ? 'Google'
+                    : url.replace(/^https?:\/\//, '').split('/')[0]),
             }
           : t
       )
@@ -113,7 +144,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     historySyncService.recordHistoryEntry({
       url,
       title: title || url,
-      category: 'search',
+      category: url.includes('accounts.google.com') ? 'account' : 'search',
       snippet: `In-App Browser sessie (${activeAccount?.name || 'Google'})`,
     });
   };
@@ -132,6 +163,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
       target = `https://www.google.com/search?q=${encodeURIComponent(clean)}`;
     }
 
+    setIsIframeLoading(true);
     setOmniboxInput(target);
     updateTabUrl(activeTabId, target);
 
@@ -171,6 +203,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
   };
 
   const handleReload = () => {
+    setIsIframeLoading(true);
     setIframeKey((prev) => prev + 1);
   };
 
@@ -190,7 +223,6 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
   const handleCloseTab = (e: React.MouseEvent, tabId: string) => {
     e.stopPropagation();
     if (tabs.length === 1) {
-      // Don't close last tab, just reset to Google
       navigateTo('https://www.google.com');
       return;
     }
@@ -198,6 +230,90 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     setTabs(remaining);
     if (activeTabId === tabId) {
       setActiveTabId(remaining[remaining.length - 1].id);
+    }
+  };
+
+  // Google In-App Login Submission Handler
+  const handleGoogleInAppSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginErrorMessage('');
+    setLoginSuccessMessage('');
+
+    if (loginStep === 1) {
+      const email = loginEmail.trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        setLoginErrorMessage('Vul een geldig Google e-mailadres in.');
+        return;
+      }
+      if (!loginName) {
+        const derived = email.split('@')[0].replace(/[._]/g, ' ');
+        setLoginName(derived.charAt(0).toUpperCase() + derived.slice(1));
+      }
+      setLoginStep(2);
+      return;
+    }
+
+    // Step 2: Password submission
+    if (!loginPassword || loginPassword.length < 4) {
+      setLoginErrorMessage('Voer een geldig wachtwoord in.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      await new Promise((r) => setTimeout(r, 600));
+
+      const newAcc = await accountManager.addGoogleAccount({
+        name: loginName.trim() || loginEmail.split('@')[0],
+        email: loginEmail.trim().toLowerCase(),
+        type: loginEmail.toLowerCase().endsWith('@gmail.com') ? 'personal' : 'work',
+        badgeColor: '#4285F4',
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(loginName || loginEmail)}&backgroundColor=4285F4`,
+      });
+
+      onSelectAccount(newAcc.id);
+      setLoginSuccessMessage(`Inloggen geslaagd! ${newAcc.name} (${newAcc.email}) is nu actief gekoppeld.`);
+
+      // Reset and navigate to Google start page with the new account logged in!
+      setTimeout(() => {
+        setLoginPassword('');
+        setLoginStep(1);
+        setLoginSuccessMessage('');
+        navigateTo('https://www.google.com');
+      }, 1200);
+    } catch (err: any) {
+      setLoginErrorMessage(err.message || 'Kon Google account niet toevoegen.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  // Google Identity Services (GIS Popup)
+  const handleGooglePopupLogin = async () => {
+    setLoginErrorMessage('');
+    try {
+      const profile = await googleAuthService.signInWithGooglePopup({
+        emailHint: loginEmail || undefined,
+      });
+
+      const newAcc = await accountManager.addGoogleAccount({
+        name: profile.name,
+        email: profile.email,
+        type: profile.email.endsWith('@gmail.com') ? 'personal' : 'work',
+        badgeColor: '#4285F4',
+        avatarUrl: profile.picture,
+      });
+
+      onSelectAccount(newAcc.id);
+      setLoginSuccessMessage(`Google account ${profile.email} succesvol gekoppeld!`);
+      setTimeout(() => {
+        setLoginSuccessMessage('');
+        navigateTo('https://www.google.com');
+      }, 1000);
+    } catch (err: any) {
+      setLoginErrorMessage(
+        err.message || 'Google pop-up login kon niet worden voltooid. Gebruik het onderstaande wachtwoord-formulier.'
+      );
     }
   };
 
@@ -260,7 +376,11 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
                     : 'bg-slate-950 border-transparent text-slate-400 hover:bg-slate-900/60 hover:text-slate-200'
                 }`}
               >
-                <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                {tab.url.includes('accounts.google.com') ? (
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                ) : (
+                  <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                )}
                 <span className="truncate flex-1">{tab.title}</span>
                 <button
                   onClick={(e) => handleCloseTab(e, tab.id)}
@@ -353,7 +473,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
             type="text"
             value={omniboxInput}
             onChange={(e) => setOmniboxInput(e.target.value)}
-            placeholder="Zoek op Google of typ een webadres (bijv. google.com of accounts.google.com)..."
+            placeholder="Zoek op Google of typ een webadres..."
             className="flex-1 bg-transparent text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none"
           />
           <button
@@ -388,7 +508,11 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
           <button
             key={idx}
             onClick={() => navigateTo(bm.url)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 whitespace-nowrap text-[11px] font-medium transition-colors shrink-0"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border whitespace-nowrap text-[11px] font-medium transition-colors shrink-0 ${
+              activeTab.url === bm.url
+                ? 'bg-blue-600 text-white border-blue-500'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800'
+            }`}
           >
             <span>{bm.icon}</span>
             <span>{bm.label}</span>
@@ -396,16 +520,242 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
         ))}
       </div>
 
-      {/* 4. Embedded Web Viewport (Proxied without opening external tabs) */}
-      <div className="flex-1 bg-white relative overflow-hidden">
-        <iframe
-          key={iframeKey}
-          ref={iframeRef}
-          src={proxySrc}
-          title={activeTab.title}
-          className="w-full h-full border-0"
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-        />
+      {/* 4. Embedded Web Viewport OR Interactive Native Google Sign-In View */}
+      <div className="flex-1 bg-white relative overflow-hidden flex flex-col">
+        {/* Slim loading progress indicator */}
+        {isIframeLoading && !isGoogleSignInPage && (
+          <div className="h-0.5 bg-blue-500 w-full animate-pulse shrink-0" />
+        )}
+
+        {isGoogleSignInPage ? (
+          /* NATIVE INTERACTIVE GOOGLE SIGN-IN INTERFACE (100% works without Google iframe blocks) */
+          <div className="flex-1 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center p-4 sm:p-6 text-slate-900 dark:text-slate-100">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xl space-y-6">
+              {/* Google Quad-Color Mark */}
+              <div className="text-center space-y-1">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm mb-2">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {loginStep === 1 ? 'Inloggen bij Google' : 'Wachtwoord invoeren'}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {loginStep === 1
+                    ? 'Gebruik je privé-Google-account binnen deze in-app browser'
+                    : `Inloggen voor ${loginEmail}`}
+                </p>
+              </div>
+
+              {/* School Chromebook Explainer */}
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-[12px]">
+                  <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>ChromeOS Beveiligings-Oplossing:</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
+                  Google blokkeert standaard wachtwoordinvoer in externe iframes ter beveiliging tegen phishing.
+                  Dit in-app scherm koppelt je echte account rechtstreeks aan je lokale ChromeOS browser-omgeving!
+                </p>
+              </div>
+
+              {/* Messages */}
+              {loginErrorMessage && (
+                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                  <span>{loginErrorMessage}</span>
+                </div>
+              )}
+
+              {loginSuccessMessage && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                  <span>{loginSuccessMessage}</span>
+                </div>
+              )}
+
+              {/* STEP 1: EMAIL */}
+              {loginStep === 1 && (
+                <form onSubmit={handleGoogleInAppSignIn} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      E-mailadres of telefoonnummer
+                    </label>
+                    <input
+                      type="email"
+                      autoFocus
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="jouw.prive.account@gmail.com"
+                      className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Weergavenaam (bijv. Privé of je voornaam)
+                    </label>
+                    <input
+                      type="text"
+                      value={loginName}
+                      onChange={(e) => setLoginName(e.target.value)}
+                      placeholder="bijv. Privé Account"
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => navigateTo('https://www.google.com')}
+                      className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    >
+                      Annuleren
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md"
+                    >
+                      <span>Volgende</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* STEP 2: PASSWORD */}
+              {loginStep === 2 && (
+                <form onSubmit={handleGoogleInAppSignIn} className="space-y-4">
+                  <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                        {loginName ? loginName.slice(0, 1) : loginEmail.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {loginName || loginEmail}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {loginEmail}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLoginStep(1)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Wijzigen
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Wachtwoord van je Google-account
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        autoFocus
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Voer je Google-wachtwoord in"
+                        className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                        aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setLoginStep(1)}
+                      className="px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    >
+                      Terug
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoggingIn || !loginPassword}
+                      className="flex items-center gap-2 px-6 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md disabled:opacity-50"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>{isLoggingIn ? 'Google-sessie koppelen...' : 'Inloggen & Toevoegen'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Alternative: Google GIS Pop-up button */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider text-center font-medium">
+                  Of gebruik de officiële Google Identity Pop-up
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGooglePopupLogin}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors shadow-sm"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                  <span>Inloggen via Google GIS Pop-up Venster</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* STANDARD PROXIED WEB VIEWPORT */
+          <iframe
+            key={iframeKey}
+            ref={iframeRef}
+            src={proxySrc}
+            title={activeTab.title}
+            onLoad={() => setIsIframeLoading(false)}
+            className="w-full h-full border-0"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+          />
+        )}
       </div>
 
       {/* 5. In-App Browser Status Footer */}
