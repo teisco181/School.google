@@ -1,6 +1,6 @@
 node_modules/
 build/
-dist/
+# dist and docs are included for static GitHub Pages hosting
 coverage/
 .DS_Store
 *.log
