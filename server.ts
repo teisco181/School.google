@@ -103,7 +103,8 @@ app.get('/api/proxy', async (req: Request, res: Response) => {
           (function() {
             document.addEventListener('click', function(e) {
               var a = e.target.closest('a');
-              if (a && a.href && !a.href.startsWith('javascript:')) {
+              if (a && a.href && !a.href.startsWith('javascript:') && !a.getAttribute('href')?.startsWith('#')) {
+                if (a.href === window.location.href) return;
                 e.preventDefault();
                 try {
                   window.parent.postMessage({ type: 'IN_APP_NAVIGATE', url: a.href }, '*');

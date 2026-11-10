@@ -93,6 +93,8 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     activeTab.url.includes('google.com/accounts') ||
     activeTab.url.includes('signin/v2');
 
+  const prevInitialUrlRef = useRef<string | undefined>(initialUrl);
+
   // Sync omnibox input when active tab changes
   useEffect(() => {
     if (activeTab) {
@@ -100,20 +102,46 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     }
   }, [activeTabId]);
 
-  // Update initial URL if prop changes
+  // Update initial URL ONLY when external prop genuinely changes
   useEffect(() => {
-    if (initialUrl && initialUrl !== activeTab?.url) {
+    if (initialUrl && initialUrl !== prevInitialUrlRef.current) {
+      prevInitialUrlRef.current = initialUrl;
       navigateTo(initialUrl);
     }
   }, [initialUrl]);
 
-  // Listen to navigation events from inside the proxied iframe
+  // Listen to navigation events from inside the proxied iframe without double-loading loops
   useEffect(() => {
+    let lastHandledUrl = '';
+    let lastHandledTime = 0;
+
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'IN_APP_NAVIGATE' && event.data.url) {
         const nextUrl = event.data.url;
-        updateTabUrl(activeTabId, nextUrl, nextUrl);
+        const now = Date.now();
+        // Prevent duplicate events within 500ms
+        if (nextUrl === lastHandledUrl && now - lastHandledTime < 500) {
+          return;
+        }
+        lastHandledUrl = nextUrl;
+        lastHandledTime = now;
+
         setOmniboxInput(nextUrl);
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === activeTabId
+              ? {
+                  ...t,
+                  url: nextUrl,
+                  title: nextUrl.includes('accounts.google.com')
+                    ? 'Google Inloggen'
+                    : nextUrl.includes('google.com')
+                      ? 'Google'
+                      : nextUrl.replace(/^https?:\/\//, '').split('/')[0],
+                }
+              : t
+          )
+        );
       }
     };
 

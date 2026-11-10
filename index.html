@@ -12,17 +12,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script>
-      // GitHub Pages Static Hosting Fallback:
-      // If loaded on GitHub Pages at root, redirect to the compiled /dist/ bundle so users never get a white screen.
-      if (window.location.hostname.endsWith('github.io')) {
-        var path = window.location.pathname;
-        if (!path.includes('/dist/') && !path.includes('/docs/')) {
-          var targetBase = path.endsWith('/') ? path : path + '/';
-          window.location.replace(targetBase + 'dist/');
-        }
-      }
-    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased selection:bg-blue-500/20 selection:text-blue-700 dark:selection:text-blue-300">
     <div id="root"></div>

@@ -4,15 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Google Agent Hub</title>
-    <script>
-      // Single Page App redirect for GitHub Pages
-      sessionStorage.redirect = location.href;
-      var repo = location.pathname.split('/')[1] || '';
-      var target = repo ? '/' + repo + '/' : '/';
-      location.replace(target);
-    </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 40px 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh;
+        text-align: center;
+      }
+      .card {
+        background: #1e293b;
+        padding: 32px;
+        border-radius: 20px;
+        border: 1px solid #334155;
+        max-width: 440px;
+      }
+      a {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 10px 20px;
+        background: #2563eb;
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+    </style>
   </head>
   <body>
-    <p style="font-family:sans-serif;text-align:center;padding:40px;">Doorsturen naar applicatie...</p>
+    <div class="card">
+      <h2 style="margin: 0 0 10px 0;">Google Agent Hub</h2>
+      <p style="color: #94a3b8; font-size: 14px; margin: 0 0 16px 0;">
+        Pagina niet gevonden of sessie ververst.
+      </p>
+      <a href="./">Open Startpagina</a>
+    </div>
   </body>
 </html>
