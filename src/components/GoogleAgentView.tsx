@@ -26,6 +26,7 @@ interface GoogleAgentViewProps {
   activeAccountId: string | 'ALL';
   onSelectAccount: (id: string | 'ALL') => void;
   onNavigateToTab: (tab: 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => void;
+  onOpenInBrowser: (url: string) => void;
 }
 
 export const GoogleAgentView: React.FC<GoogleAgentViewProps> = ({
@@ -33,6 +34,7 @@ export const GoogleAgentView: React.FC<GoogleAgentViewProps> = ({
   activeAccountId,
   onSelectAccount,
   onNavigateToTab,
+  onOpenInBrowser,
 }) => {
   const [messages, setMessages] = useState<AgentMessage[]>([
     {
@@ -278,10 +280,11 @@ export const GoogleAgentView: React.FC<GoogleAgentViewProps> = ({
       url: targetUrl,
       title: isUrl ? query : `Google: "${query}"`,
       category: 'search',
-      snippet: isUrl ? 'Directe website navigatie' : `Zoekopdracht op Google: ${query}`,
+      snippet: isUrl ? 'Directe website navigatie (In-App Browser)' : `Zoekopdracht op Google: ${query}`,
     });
 
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    // Directly open inside the In-App Browser to prevent school Chromebook from blocking secondary profiles
+    onOpenInBrowser(targetUrl);
     setGoogleSearchQuery('');
   };
 
@@ -411,16 +414,16 @@ export const GoogleAgentView: React.FC<GoogleAgentViewProps> = ({
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {msg.sources.map((src, i) => (
-                      <a
+                      <button
                         key={i}
-                        href={src.url}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
+                        onClick={() => onOpenInBrowser(src.url)}
                         className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 truncate max-w-[200px]"
+                        title={`Open in In-App Browser: ${src.url}`}
                       >
                         <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                         <span className="truncate">{src.title}</span>
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>

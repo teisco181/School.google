@@ -6,6 +6,7 @@ import { GoogleAccount, UserProfile } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { MultiSessionBar } from './components/MultiSessionBar';
 import { GoogleAgentView } from './components/GoogleAgentView';
+import { InAppBrowserView } from './components/InAppBrowserView';
 import { WorkspaceHubView } from './components/WorkspaceHubView';
 import { ChromeOSCachePanel } from './components/ChromeOSCachePanel';
 import { HistorySyncPanel } from './components/HistorySyncPanel';
@@ -18,7 +19,8 @@ import { QuickCommandPalette } from './components/QuickCommandPalette';
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(userManager.getIsAuthenticated());
   const [activeUser, setActiveUser] = useState<UserProfile | null>(userManager.getActiveUser());
-  const [activeTab, setActiveTab] = useState<'agent' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history'>('agent');
+  const [activeTab, setActiveTab] = useState<'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history'>('agent');
+  const [browserInitialUrl, setBrowserInitialUrl] = useState<string>('https://www.google.com');
   const [accounts, setAccounts] = useState<GoogleAccount[]>(accountManager.getAccounts());
   const [activeAccountId, setActiveAccountId] = useState<string | 'ALL'>(accountManager.getActiveAccountId());
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -67,10 +69,11 @@ export default function App() {
   }, [isDarkMode]);
 
   // Track tab changes in local browser history (zero-cloud)
-  const handleTabChange = (tab: 'agent' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => {
+  const handleTabChange = (tab: 'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => {
     setActiveTab(tab);
     const titles: Record<string, string> = {
       agent: 'Google Agent Workspace',
+      browser: 'In-App Web Browser',
       inbox: 'Gmail Inbox',
       calendar: 'Google Agenda & Taken',
       drive: 'Google Drive Bestanden',
@@ -80,8 +83,13 @@ export default function App() {
     historySyncService.recordHistoryEntry({
       url: `#${tab}`,
       title: titles[tab] || tab,
-      category: tab === 'agent' ? 'agent' : tab === 'inbox' ? 'email' : 'agenda',
+      category: tab === 'agent' ? 'agent' : tab === 'browser' ? 'search' : tab === 'inbox' ? 'email' : 'agenda',
     });
+  };
+
+  const handleOpenInBrowser = (url: string) => {
+    setBrowserInitialUrl(url);
+    handleTabChange('browser');
   };
 
   // Global ChromeOS Keyboard Shortcuts
@@ -113,6 +121,12 @@ export default function App() {
       if (e.altKey && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         handleTabChange('agent');
+      }
+
+      // Alt+B -> In-App Browser tab
+      if (e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        handleTabChange('browser');
       }
 
       // Alt+H -> History tab
@@ -199,7 +213,19 @@ export default function App() {
             activeAccountId={activeAccountId}
             onSelectAccount={handleSelectAccount}
             onNavigateToTab={handleTabChange}
+            onOpenInBrowser={handleOpenInBrowser}
           />
+        )}
+
+        {activeTab === 'browser' && (
+          <div className="px-4">
+            <InAppBrowserView
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              onSelectAccount={handleSelectAccount}
+              initialUrl={browserInitialUrl}
+            />
+          </div>
         )}
 
         {activeTab === 'inbox' && (
@@ -211,6 +237,7 @@ export default function App() {
             onOpenCompose={() => setIsComposeOpen(true)}
             onOpenAddEvent={() => setIsAddEventOpen(true)}
             onAskAgent={handleAskAgent}
+            onOpenInBrowser={handleOpenInBrowser}
           />
         )}
 
@@ -223,6 +250,7 @@ export default function App() {
             onOpenCompose={() => setIsComposeOpen(true)}
             onOpenAddEvent={() => setIsAddEventOpen(true)}
             onAskAgent={handleAskAgent}
+            onOpenInBrowser={handleOpenInBrowser}
           />
         )}
 
@@ -235,6 +263,7 @@ export default function App() {
             onOpenCompose={() => setIsComposeOpen(true)}
             onOpenAddEvent={() => setIsAddEventOpen(true)}
             onAskAgent={handleAskAgent}
+            onOpenInBrowser={handleOpenInBrowser}
           />
         )}
 
@@ -250,6 +279,7 @@ export default function App() {
         onAccountAdded={(newId) => {
           accountManager.setActiveAccount(newId);
         }}
+        onOpenInBrowser={handleOpenInBrowser}
       />
 
       <ComposeEmailModal

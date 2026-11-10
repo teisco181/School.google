@@ -27,6 +27,7 @@ interface WorkspaceHubViewProps {
   onOpenCompose: () => void;
   onOpenAddEvent: () => void;
   onAskAgent: (prompt: string) => void;
+  onOpenInBrowser?: (url: string) => void;
 }
 
 export const WorkspaceHubView: React.FC<WorkspaceHubViewProps> = ({
@@ -37,6 +38,7 @@ export const WorkspaceHubView: React.FC<WorkspaceHubViewProps> = ({
   onOpenCompose,
   onOpenAddEvent,
   onAskAgent,
+  onOpenInBrowser,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmail, setSelectedEmail] = useState<GoogleEmail | null>(null);
@@ -162,41 +164,35 @@ export const WorkspaceHubView: React.FC<WorkspaceHubViewProps> = ({
                 {targetEmail}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500 hidden sm:inline">Open in officiële Google app:</span>
-              <a
-                href={urls.gmail}
-                target="_blank"
-                rel="noreferrer"
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] text-slate-500 hidden sm:inline mr-1">In-App Browser:</span>
+              <button
+                type="button"
+                onClick={() => onOpenInBrowser ? onOpenInBrowser(urls.gmail) : window.open(urls.gmail, '_blank')}
                 className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-medium transition-colors"
-                title={`Open Gmail voor ${targetEmail}`}
+                title={`Open Gmail voor ${targetEmail} in de In-App Browser`}
               >
                 <Mail className="w-3.5 h-3.5 text-red-500" />
                 <span>Gmail</span>
-                <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-              </a>
-              <a
-                href={urls.calendar}
-                target="_blank"
-                rel="noreferrer"
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenInBrowser ? onOpenInBrowser(urls.calendar) : window.open(urls.calendar, '_blank')}
                 className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-medium transition-colors"
-                title={`Open Google Agenda voor ${targetEmail}`}
+                title={`Open Google Agenda voor ${targetEmail} in de In-App Browser`}
               >
                 <Calendar className="w-3.5 h-3.5 text-blue-500" />
                 <span>Agenda</span>
-                <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-              </a>
-              <a
-                href={urls.drive}
-                target="_blank"
-                rel="noreferrer"
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenInBrowser ? onOpenInBrowser(urls.drive) : window.open(urls.drive, '_blank')}
                 className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-medium transition-colors"
-                title={`Open Google Drive voor ${targetEmail}`}
+                title={`Open Google Drive voor ${targetEmail} in de In-App Browser`}
               >
                 <FileText className="w-3.5 h-3.5 text-amber-500" />
                 <span>Drive</span>
-                <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
-              </a>
+              </button>
             </div>
           </div>
         );

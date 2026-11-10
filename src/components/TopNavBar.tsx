@@ -4,8 +4,8 @@ import { userManager } from '../services/userManager';
 import { Zap, Moon, Sun, Laptop, History, Lock, LogOut } from 'lucide-react';
 
 interface TopNavBarProps {
-  activeTab: 'agent' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history';
-  setActiveTab: (tab: 'agent' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => void;
+  activeTab: 'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history';
+  setActiveTab: (tab: 'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => void;
   accounts: GoogleAccount[];
   activeAccountId: string | 'ALL';
   onSelectAccount: (id: string | 'ALL') => void;
@@ -89,7 +89,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
         </a>
       </div>
 
-      {/* Zone 2: 5 Clean Single-Line Nav Links */}
+      {/* Zone 2: Clean Single-Line Nav Links */}
       <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
         <button
           onClick={() => setActiveTab('agent')}
@@ -100,6 +100,17 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           }`}
         >
           Google Agent
+        </button>
+        <button
+          onClick={() => setActiveTab('browser')}
+          className={`pb-0.5 whitespace-nowrap shrink-0 transition-colors flex items-center gap-1.5 ${
+            activeTab === 'browser'
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-semibold'
+              : 'hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          In-App Browser
         </button>
         <button
           onClick={() => setActiveTab('inbox')}

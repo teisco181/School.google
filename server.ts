@@ -34,6 +34,103 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
+// In-App Web Browser Proxy: strips X-Frame-Options and CSP headers so websites render inside the in-app viewport
+app.get('/api/proxy', async (req: Request, res: Response) => {
+  try {
+    const rawUrl = req.query.url as string;
+    if (!rawUrl) {
+      return res.status(400).send('URL query parameter is verplicht');
+    }
+
+    let targetUrl = rawUrl.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (X11; CrOS x86_64 14542.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+      redirect: 'follow',
+    });
+
+    const contentType = response.headers.get('content-type') || 'text/html';
+    res.setHeader('Content-Type', contentType);
+
+    // Remove anti-framing and strict CSP headers
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
+
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+
+      const baseTag = `<base href="${targetUrl}">`;
+      const interceptScript = `
+        <script>
+          // In-App Browser Navigation Interceptor
+          (function() {
+            document.addEventListener('click', function(e) {
+              var a = e.target.closest('a');
+              if (a && a.href && !a.href.startsWith('javascript:')) {
+                e.preventDefault();
+                try {
+                  window.parent.postMessage({ type: 'IN_APP_NAVIGATE', url: a.href }, '*');
+                } catch(err) {}
+                window.location.href = '/api/proxy?url=' + encodeURIComponent(a.href);
+              }
+            }, true);
+
+            document.addEventListener('submit', function(e) {
+              var form = e.target;
+              if (form && form.action) {
+                if ((form.method || 'GET').toUpperCase() === 'GET') {
+                  e.preventDefault();
+                  var formData = new FormData(form);
+                  var params = new URLSearchParams(formData);
+                  var fullUrl = form.action + (form.action.includes('?') ? '&' : '?') + params.toString();
+                  try {
+                    window.parent.postMessage({ type: 'IN_APP_NAVIGATE', url: fullUrl }, '*');
+                  } catch(err) {}
+                  window.location.href = '/api/proxy?url=' + encodeURIComponent(fullUrl);
+                }
+              }
+            }, true);
+          })();
+        </script>
+      `;
+
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}${interceptScript}`);
+      } else {
+        html = `${baseTag}${interceptScript}${html}`;
+      }
+
+      return res.send(html);
+    } else {
+      const arrayBuffer = await response.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    }
+  } catch (err: any) {
+    console.error('In-App Browser Proxy Error:', err);
+    return res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><title>Pagina laden mislukt</title></head>
+        <body style="font-family:system-ui,sans-serif;padding:40px;background:#f8fafc;color:#1e293b;text-align:center;">
+          <h2 style="color:#e11d48;">⚠️ Kan pagina niet laden via in-app browser</h2>
+          <p style="color:#64748b;">Doel-URL: <code>${req.query.url}</code></p>
+          <p style="color:#64748b;margin-bottom:24px;">Foutmelding: ${err.message}</p>
+          <a href="javascript:location.reload()" style="display:inline-block;padding:10px 20px;background:#2563eb;color:white;text-decoration:none;border-radius:10px;font-weight:600;">Opnieuw proberen</a>
+        </body>
+      </html>
+    `);
+  }
+});
+
 // Google Agent Chat Endpoint
 app.post('/api/agent/chat', async (req: Request, res: Response) => {
   try {

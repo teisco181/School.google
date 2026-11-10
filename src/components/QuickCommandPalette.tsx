@@ -8,7 +8,7 @@ interface QuickCommandPaletteProps {
   onClose: () => void;
   accounts: GoogleAccount[];
   onSelectAccount: (id: string | 'ALL') => void;
-  onNavigateTab: (tab: 'agent' | 'inbox' | 'calendar' | 'drive' | 'cache') => void;
+  onNavigateTab: (tab: 'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => void;
   onAskAgent: (prompt: string) => void;
 }
 

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 interface HistorySyncPanelProps {
-  onNavigateTab: (tab: 'agent' | 'inbox' | 'calendar' | 'drive' | 'cache') => void;
+  onNavigateTab: (tab: 'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history') => void;
 }
 
 export const HistorySyncPanel: React.FC<HistorySyncPanelProps> = ({ onNavigateTab }) => {
