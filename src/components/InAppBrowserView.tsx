@@ -25,6 +25,10 @@ import {
   Sparkles,
   AlertCircle,
   Laptop,
+  Mail,
+  Calendar,
+  FileText,
+  RefreshCw,
 } from 'lucide-react';
 
 interface BrowserTab {
@@ -96,6 +100,47 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     activeTab.url.includes('InteractiveLogin') ||
     activeTab.url === '#google-signin' ||
     activeTab.url === '#login';
+
+  // User setting: force iframe embedding for specific tabs
+  const [forceEmbedTabs, setForceEmbedTabs] = useState<Record<string, boolean>>({});
+
+  // Auto-launch external websites in the safe isolated window (prevents connection refused)
+  const [autoOpenExternal, setAutoOpenExternal] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('chromeos_auto_open_external') === 'true';
+    }
+    return false;
+  });
+
+  const toggleAutoOpen = (val: boolean) => {
+    setAutoOpenExternal(val);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chromeos_auto_open_external', String(val));
+    }
+  };
+
+  const isGooglePage =
+    activeTab.url.includes('google.com/search') ||
+    activeTab.url.includes('google.com/webhp') ||
+    activeTab.url === 'https://www.google.com' ||
+    activeTab.url === 'https://www.google.com/' ||
+    activeTab.url.includes('igu=1');
+
+  const isGoogleWorkspaceUrl =
+    activeTab.url.includes('mail.google.com') ||
+    activeTab.url.includes('calendar.google.com') ||
+    activeTab.url.includes('drive.google.com') ||
+    activeTab.url.includes('docs.google.com');
+
+  const isExternalSite = !isGooglePage && !isGoogleSignInPage && !isGoogleWorkspaceUrl;
+
+  const openInIsolatedWindow = (url: string) => {
+    window.open(
+      url,
+      'ChromeOSIsolatedBrowser',
+      'width=1200,height=820,menubar=no,toolbar=yes,location=yes,status=no,resizable=yes'
+    );
+  };
 
   const prevInitialUrlRef = useRef<string | undefined>(initialUrl);
 
@@ -789,21 +834,167 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
               </div>
             </div>
           </div>
+        ) : isGoogleWorkspaceUrl ? (
+          /* GOOGLE WORKSPACE SERVICE GATEWAY */
+          <div className="flex-1 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+            <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-xl space-y-5">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                {activeTab.url.includes('mail.google.com') ? (
+                  <Mail className="w-7 h-7 text-red-500" />
+                ) : activeTab.url.includes('calendar.google.com') ? (
+                  <Calendar className="w-7 h-7 text-blue-500" />
+                ) : (
+                  <FileText className="w-7 h-7 text-amber-500" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {activeTab.url.includes('mail.google.com')
+                    ? 'Gmail Workspace'
+                    : activeTab.url.includes('calendar.google.com')
+                    ? 'Google Agenda'
+                    : 'Google Drive'}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Actief account:{' '}
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {activeAccount ? `${activeAccount.name} (${activeAccount.email})` : 'Google'}
+                  </span>
+                </p>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200/60 dark:border-blue-900/40 text-xs text-blue-900 dark:text-blue-200 text-left space-y-1">
+                <p className="font-semibold text-[11px] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>ChromeOS Workspace Isolatie:</span>
+                </p>
+                <p className="text-[11px] text-blue-800 dark:text-blue-300">
+                  Google Workspace vereist een eigen venstercontext voor beveiligde e-mails en documenten. Open deze pagina direct storingsvrij in je sessie-venster!
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => openInIsolatedWindow(activeTab.url)}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>🚀 Open in Veilig Browsersessie-venster</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : isExternalSite && !forceEmbedTabs[activeTab.id] ? (
+          /* EXTERNAL WEBSITE GATEWAY (PREVENTS 'CONNECTION REFUSED' / X-FRAME ERRORS) */
+          <div className="flex-1 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+            <div className="max-w-lg w-full bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-2xl space-y-5">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <Globe className="w-8 h-8" />
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold mb-2">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>ChromeOS Geïsoleerde Browsersessie</span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate">
+                  {activeTab.title || 'Externe Website'}
+                </h3>
+                <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1 truncate max-w-md mx-auto">
+                  {activeTab.url}
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 text-left text-xs space-y-1.5">
+                <p className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>Waarom we dit via een browsersessie-venster openen:</span>
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Deze website stuurt een beveiligingsheader (X-Frame-Options) waardoor browsers de weergave in kleine subframes weigeren. In dit beveiligde sessie-venster laadt de website <b>100% storingsvrij</b> en kun je inloggen met elk gewenst account!
+                </p>
+              </div>
+
+              {/* Primary Action Button */}
+              <div className="space-y-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => openInIsolatedWindow(activeTab.url)}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-2xl text-xs shadow-lg transition-all transform active:scale-[0.99] cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>🚀 Open Website in Veilig Browsersessie-venster</span>
+                </button>
+
+                {/* Alternative: Force embed & Auto-open */}
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForceEmbedTabs((prev) => ({ ...prev, [activeTab.id]: true }))
+                    }
+                    className="hover:underline text-blue-600 dark:text-blue-400 flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Toch in frame proberen</span>
+                  </button>
+
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoOpenExternal}
+                      onChange={(e) => toggleAutoOpen(e.target.checked)}
+                      className="rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Altijd direct openen</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
-          /* STANDARD WEB VIEWPORT */
+          /* STANDARD EMBEDDED VIEWPORT (FOR GOOGLE SEARCH & EMBEDDABLE SITES) */
           <div className="flex-1 flex flex-col relative w-full h-full overflow-hidden">
-            {/* Helper banner when viewing external websites that might block iframes */}
-            {!activeTab.url.includes('google.com') && (
-              <div className="flex items-center justify-between px-3 py-1.5 bg-amber-950/90 border-b border-amber-800 text-amber-200 text-xs shrink-0">
-                <div className="flex items-center gap-2 truncate">
-                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="truncate">
-                    Blokkeert deze website weergave (X-Frame beveiliging)?
+            {/* Helpful tip for Google Search */}
+            {isGooglePage && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-blue-950/80 border-b border-blue-800 text-blue-200 text-xs shrink-0">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="font-semibold text-blue-300">💡 Zoektip:</span>
+                  <span className="truncate text-slate-300">
+                    Klik op een zoekresultaat met rechtermuisknop &gt; <b>'In nieuw venster openen'</b> om externe sites direct storingsvrij te laden.
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => window.open(activeTab.url, '_blank', 'popup=yes,width=1100,height=820')}
+                  onClick={() =>
+                    openInIsolatedWindow(
+                      'https://www.google.com/search?q=' +
+                        encodeURIComponent(
+                          omniboxInput.replace(/https?:\/\/[^?]+\?q=/, '').split('&')[0] || 'Google'
+                        )
+                    )
+                  }
+                  className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shrink-0 ml-2 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Google in Venster</span>
+                </button>
+              </div>
+            )}
+
+            {/* Helper banner if force-embedding an external site */}
+            {isExternalSite && forceEmbedTabs[activeTab.id] && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-amber-950/90 border-b border-amber-800 text-amber-200 text-xs shrink-0">
+                <div className="flex items-center gap-2 truncate">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="truncate">
+                    Weigert deze site de verbinding?
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openInIsolatedWindow(activeTab.url)}
                   className="flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all shadow cursor-pointer ml-2"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
