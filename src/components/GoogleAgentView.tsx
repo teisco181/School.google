@@ -345,7 +345,7 @@ export const GoogleAgentView: React.FC<GoogleAgentViewProps> = ({
       targetUrl = `https://${query}`;
       isUrl = true;
     } else {
-      targetUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+      targetUrl = `https://www.google.com/search?igu=1&q=${encodeURIComponent(query)}`;
     }
 
     // Synchronize directly into local zero-cloud browser history

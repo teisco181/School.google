@@ -20,7 +20,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(userManager.getIsAuthenticated());
   const [activeUser, setActiveUser] = useState<UserProfile | null>(userManager.getActiveUser());
   const [activeTab, setActiveTab] = useState<'agent' | 'browser' | 'inbox' | 'calendar' | 'drive' | 'cache' | 'history'>('agent');
-  const [browserInitialUrl, setBrowserInitialUrl] = useState<string>('https://www.google.com');
+  const [browserInitialUrl, setBrowserInitialUrl] = useState<string>('https://www.google.com/webhp?igu=1');
   const [accounts, setAccounts] = useState<GoogleAccount[]>(accountManager.getAccounts());
   const [activeAccountId, setActiveAccountId] = useState<string | 'ALL'>(accountManager.getActiveAccountId());
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {

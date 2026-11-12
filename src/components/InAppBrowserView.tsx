@@ -53,7 +53,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
       ? accounts.find((a) => a.id === activeAccountId) || accounts[0]
       : accounts[0];
 
-  const defaultStartUrl = initialUrl || 'https://www.google.com';
+  const defaultStartUrl = initialUrl || 'https://www.google.com/webhp?igu=1';
 
   const [tabs, setTabs] = useState<BrowserTab[]>([
     {
@@ -182,13 +182,25 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     if (!clean) return;
 
     let target = '';
-    if (clean.startsWith('http://') || clean.startsWith('https://')) {
-      target = clean;
+    if (
+      clean === 'google.com' ||
+      clean === 'www.google.com' ||
+      clean === 'https://www.google.com' ||
+      clean === 'https://www.google.com/' ||
+      clean === 'http://www.google.com'
+    ) {
+      target = 'https://www.google.com/webhp?igu=1';
+    } else if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      if (clean.includes('google.com/search') && !clean.includes('igu=1')) {
+        target = clean.includes('?') ? `${clean}&igu=1` : `${clean}?igu=1`;
+      } else {
+        target = clean;
+      }
     } else if (clean.includes('.') && !clean.includes(' ') && clean.length > 3) {
       target = `https://${clean}`;
     } else {
-      // Search on Google
-      target = `https://www.google.com/search?q=${encodeURIComponent(clean)}`;
+      // Search on Google (official igu=1 parameter renders directly inside iframe without X-Frame-Options block)
+      target = `https://www.google.com/search?igu=1&q=${encodeURIComponent(clean)}`;
     }
 
     setIsIframeLoading(true);
@@ -235,7 +247,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     setIframeKey((prev) => prev + 1);
   };
 
-  const handleNewTab = (url = 'https://www.google.com', title = 'Nieuw tabblad') => {
+  const handleNewTab = (url = 'https://www.google.com/webhp?igu=1', title = 'Google Zoeken') => {
     const newId = `tab-${Date.now()}`;
     const newTab: BrowserTab = {
       id: newId,
@@ -351,7 +363,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     : null;
 
   const quickBookmarks = [
-    { label: 'Google Zoeken', url: 'https://www.google.com', icon: '🔍' },
+    { label: 'Google Zoeken', url: 'https://www.google.com/webhp?igu=1', icon: '🔍' },
     {
       label: 'Google Inloggen',
       url: 'https://accounts.google.com/signin',
@@ -379,7 +391,47 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     },
   ];
 
-  const proxySrc = `/api/proxy?url=${encodeURIComponent(activeTab.url)}`;
+  // Computes the iframe URL safely avoiding GitHub Pages 404s
+  const computeIframeSrc = (rawUrl: string): string => {
+    if (!rawUrl) return 'https://www.google.com/webhp?igu=1';
+
+    // 1. If it's a Google Search URL, ensure igu=1 is added so Google renders directly in iframe
+    if (rawUrl.includes('google.com/search')) {
+      try {
+        const parsed = new URL(rawUrl);
+        parsed.searchParams.set('igu', '1');
+        return parsed.toString();
+      } catch {
+        return rawUrl.includes('?') ? `${rawUrl}&igu=1` : `${rawUrl}?igu=1`;
+      }
+    }
+
+    // 2. If it's the Google Home Page or webhp
+    if (
+      rawUrl === 'https://www.google.com' ||
+      rawUrl === 'https://www.google.com/' ||
+      rawUrl === 'http://www.google.com' ||
+      rawUrl.includes('google.com/webhp')
+    ) {
+      return 'https://www.google.com/webhp?igu=1';
+    }
+
+    // 3. Detect static hosting environments (such as GitHub Pages *.github.io)
+    // where /api/proxy does NOT exist on the static web host
+    const isStaticHost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.endsWith('github.io') ||
+       window.location.hostname.endsWith('github.com') ||
+       window.location.protocol === 'file:');
+
+    if (isStaticHost) {
+      // NEVER request /api/proxy on GitHub Pages, as that yields "404 there isn't a github page for this"
+      return rawUrl;
+    }
+
+    // 4. In development or Node full-stack environment: use local server proxy
+    return `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
+  };
 
   return (
     <div
@@ -480,7 +532,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
             <RotateCw className="w-4 h-4" />
           </button>
           <button
-            onClick={() => navigateTo('https://www.google.com')}
+            onClick={() => navigateTo('https://www.google.com/webhp?igu=1')}
             className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
             title="Startpagina Google"
           >
@@ -777,7 +829,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
           <iframe
             key={iframeKey}
             ref={iframeRef}
-            src={proxySrc}
+            src={computeIframeSrc(activeTab.url)}
             title={activeTab.title}
             onLoad={() => setIsIframeLoading(false)}
             className="w-full h-full border-0"
