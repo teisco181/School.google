@@ -148,6 +148,35 @@ class UserManager {
   }
 
   /**
+   * Directly unlock session to enter Startpagina Hub workspace
+   */
+  public unlockDirectly(userId?: string): boolean {
+    const target = (userId ? this.users.find((u) => u.id === userId) : null) || this.users[0];
+    if (!target) return false;
+
+    this.activeUser = target;
+    this.isAuthenticated = true;
+    target.lastLogin = Date.now();
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(SESSION_AUTH_KEY, 'true');
+      localStorage.setItem(ACTIVE_USER_ID_KEY, target.id);
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(this.users));
+    }
+
+    historySyncService.setUserId(target.id);
+    historySyncService.recordHistoryEntry({
+      url: '#hub',
+      title: `Startpagina Hub geopend door ${target.name}`,
+      category: 'account',
+      snippet: 'Directe sessie gestart.',
+    });
+
+    this.notify();
+    return true;
+  }
+
+  /**
    * Register a new user profile on this Chromebook
    */
   public async createProfile(params: {
