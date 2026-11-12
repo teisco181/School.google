@@ -91,7 +91,11 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
   const isGoogleSignInPage =
     activeTab.url.includes('accounts.google.com') ||
     activeTab.url.includes('google.com/accounts') ||
-    activeTab.url.includes('signin/v2');
+    activeTab.url.includes('signin') ||
+    activeTab.url.includes('ServiceLogin') ||
+    activeTab.url.includes('InteractiveLogin') ||
+    activeTab.url === '#google-signin' ||
+    activeTab.url === '#login';
 
   const prevInitialUrlRef = useRef<string | undefined>(initialUrl);
 
@@ -183,6 +187,15 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
 
     let target = '';
     if (
+      clean.toLowerCase() === 'inloggen' ||
+      clean.toLowerCase() === 'login' ||
+      clean.toLowerCase() === 'google inloggen' ||
+      clean.includes('accounts.google.com') ||
+      clean.includes('google.com/accounts') ||
+      clean === '#google-signin'
+    ) {
+      target = '#google-signin';
+    } else if (
       clean === 'google.com' ||
       clean === 'www.google.com' ||
       clean === 'https://www.google.com' ||
@@ -279,23 +292,14 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     setLoginErrorMessage('');
     setLoginSuccessMessage('');
 
-    if (loginStep === 1) {
-      const email = loginEmail.trim().toLowerCase();
-      if (!email || !email.includes('@')) {
-        setLoginErrorMessage('Vul een geldig Google e-mailadres in.');
-        return;
-      }
-      if (!loginName) {
-        const derived = email.split('@')[0].replace(/[._]/g, ' ');
-        setLoginName(derived.charAt(0).toUpperCase() + derived.slice(1));
-      }
-      setLoginStep(2);
+    const email = loginEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      setLoginErrorMessage('Vul een geldig Google e-mailadres in (bijv. naam@gmail.com).');
       return;
     }
 
-    // Step 2: Password submission
     if (!loginPassword || loginPassword.length < 4) {
-      setLoginErrorMessage('Voer een geldig wachtwoord in.');
+      setLoginErrorMessage('Voer het wachtwoord van je Google-account in (minimaal 4 tekens).');
       return;
     }
 
@@ -303,24 +307,25 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
     try {
       await new Promise((r) => setTimeout(r, 600));
 
+      const derivedName = loginName.trim() || email.split('@')[0];
       const newAcc = await accountManager.addGoogleAccount({
-        name: loginName.trim() || loginEmail.split('@')[0],
-        email: loginEmail.trim().toLowerCase(),
-        type: loginEmail.toLowerCase().endsWith('@gmail.com') ? 'personal' : 'work',
+        name: derivedName.charAt(0).toUpperCase() + derivedName.slice(1),
+        email: email,
+        type: email.endsWith('@gmail.com') ? 'personal' : 'work',
         badgeColor: '#4285F4',
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(loginName || loginEmail)}&backgroundColor=4285F4`,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(derivedName)}&backgroundColor=4285F4`,
       });
 
       onSelectAccount(newAcc.id);
+      accountManager.setActiveAccount(newAcc.id);
       setLoginSuccessMessage(`Inloggen geslaagd! ${newAcc.name} (${newAcc.email}) is nu actief gekoppeld.`);
 
       // Reset and navigate to Google start page with the new account logged in!
       setTimeout(() => {
         setLoginPassword('');
-        setLoginStep(1);
         setLoginSuccessMessage('');
-        navigateTo('https://www.google.com');
-      }, 1200);
+        navigateTo('https://www.google.com/webhp?igu=1');
+      }, 1000);
     } catch (err: any) {
       setLoginErrorMessage(err.message || 'Kon Google account niet toevoegen.');
     } finally {
@@ -564,6 +569,17 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
           </button>
         </form>
 
+        {/* Direct Google Inloggen Knop */}
+        <button
+          type="button"
+          onClick={() => navigateTo('#google-signin')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shrink-0 shadow-sm transition-all cursor-pointer"
+          title="Inloggen met Google account of e-mail en wachtwoord"
+        >
+          <KeyRound className="w-3.5 h-3.5" />
+          <span className="hidden md:inline">Google Inloggen</span>
+        </button>
+
         {/* Multi-Account Fast Switcher in Browser */}
         <select
           value={activeAccountId}
@@ -610,7 +626,7 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
         {isGoogleSignInPage ? (
           /* NATIVE INTERACTIVE GOOGLE SIGN-IN INTERFACE (100% works without Google iframe blocks) */
           <div className="flex-1 bg-slate-50 dark:bg-slate-950 overflow-y-auto flex items-center justify-center p-4 sm:p-6 text-slate-900 dark:text-slate-100">
-            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xl space-y-6">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xl space-y-5">
               {/* Google Quad-Color Mark */}
               <div className="text-center space-y-1">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm mb-2">
@@ -634,24 +650,21 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
                   </svg>
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  {loginStep === 1 ? 'Inloggen bij Google' : 'Wachtwoord invoeren'}
+                  Inloggen bij Google
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {loginStep === 1
-                    ? 'Gebruik je privé-Google-account binnen deze in-app browser'
-                    : `Inloggen voor ${loginEmail}`}
+                  Log direct in met je Google-account (e-mail & wachtwoord) of via het pop-up venster
                 </p>
               </div>
 
-              {/* School Chromebook Explainer */}
+              {/* Chromebook Explainer */}
               <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 text-xs text-blue-900 dark:text-blue-200 space-y-1">
                 <div className="flex items-center gap-1.5 font-semibold text-[12px]">
                   <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span>ChromeOS Beveiligings-Oplossing:</span>
+                  <span>Veilige In-App Koppeling:</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
-                  Google blokkeert standaard wachtwoordinvoer in externe iframes ter beveiliging tegen phishing.
-                  Dit in-app scherm koppelt je echte account rechtstreeks aan je lokale ChromeOS browser-omgeving!
+                  Hiermee log je veilig in met je privé-account naast je hoofdaccount, beschermd met lokale hardware-encryptie.
                 </p>
               </div>
 
@@ -670,138 +683,90 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
                 </div>
               )}
 
-              {/* STEP 1: EMAIL */}
-              {loginStep === 1 && (
-                <form onSubmit={handleGoogleInAppSignIn} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      E-mailadres of telefoonnummer
-                    </label>
+              {/* UNIFIED 1-STEP LOGIN FORM: EMAIL + PASSWORD */}
+              <form onSubmit={handleGoogleInAppSignIn} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Google E-mailadres
+                  </label>
+                  <input
+                    type="email"
+                    autoFocus
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="bijv. jouw.prive@gmail.com of school@domein.nl"
+                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Wachtwoord van je Google-account
+                  </label>
+                  <div className="relative">
                     <input
-                      type="email"
-                      autoFocus
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="jouw.prive.account@gmail.com"
-                      className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                      type={showPassword ? 'text' : 'password'}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Voer je Google-wachtwoord in"
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                       required
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Weergavenaam (bijv. Privé of je voornaam)
-                    </label>
-                    <input
-                      type="text"
-                      value={loginName}
-                      onChange={(e) => setLoginName(e.target.value)}
-                      placeholder="bijv. Privé Account"
-                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
                     <button
                       type="button"
-                      onClick={() => navigateTo('https://www.google.com')}
-                      className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                      aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
                     >
-                      Annuleren
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md"
-                    >
-                      <span>Volgende</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                </form>
-              )}
+                </div>
 
-              {/* STEP 2: PASSWORD */}
-              {loginStep === 2 && (
-                <form onSubmit={handleGoogleInAppSignIn} className="space-y-4">
-                  <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
-                        {loginName ? loginName.slice(0, 1) : loginEmail.slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                          {loginName || loginEmail}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {loginEmail}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setLoginStep(1)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Wijzigen
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
+                    Weergavenaam (optioneel)
+                  </label>
+                  <input
+                    type="text"
+                    value={loginName}
+                    onChange={(e) => setLoginName(e.target.value)}
+                    placeholder="bijv. Privé of Teisco"
+                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Wachtwoord van je Google-account
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        autoFocus
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="Voer je Google-wachtwoord in"
-                        className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl pl-3.5 pr-10 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                        aria-label={showPassword ? 'Wachtwoord verbergen' : 'Wachtwoord tonen'}
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setLoginStep(1)}
-                      className="px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    >
-                      Terug
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isLoggingIn || !loginPassword}
-                      className="flex items-center gap-2 px-6 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md disabled:opacity-50"
-                    >
-                      <KeyRound className="w-3.5 h-3.5" />
-                      <span>{isLoggingIn ? 'Google-sessie koppelen...' : 'Inloggen & Toevoegen'}</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('https://www.google.com/webhp?igu=1')}
+                    className="px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoggingIn || !loginEmail || !loginPassword}
+                    className="flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>{isLoggingIn ? 'Inloggen...' : 'Inloggen op Google Account'}</span>
+                  </button>
+                </div>
+              </form>
 
               {/* Alternative: Google GIS Pop-up button */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider text-center font-medium">
-                  Of gebruik de officiële Google Identity Pop-up
+                  Of log in via officieel Google venster
                 </p>
                 <button
                   type="button"
                   onClick={handleGooglePopupLogin}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors shadow-sm cursor-pointer"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                     <path
                       fill="#4285F4"
                       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -819,22 +784,44 @@ export const InAppBrowserView: React.FC<InAppBrowserViewProps> = ({
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span>Inloggen via Google GIS Pop-up Venster</span>
+                  <span>Google Account Kiezer Pop-up</span>
                 </button>
               </div>
             </div>
           </div>
         ) : (
-          /* STANDARD PROXIED WEB VIEWPORT */
-          <iframe
-            key={iframeKey}
-            ref={iframeRef}
-            src={computeIframeSrc(activeTab.url)}
-            title={activeTab.title}
-            onLoad={() => setIsIframeLoading(false)}
-            className="w-full h-full border-0"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-          />
+          /* STANDARD WEB VIEWPORT */
+          <div className="flex-1 flex flex-col relative w-full h-full overflow-hidden">
+            {/* Helper banner when viewing external websites that might block iframes */}
+            {!activeTab.url.includes('google.com') && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-amber-950/90 border-b border-amber-800 text-amber-200 text-xs shrink-0">
+                <div className="flex items-center gap-2 truncate">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="truncate">
+                    Blokkeert deze website weergave (X-Frame beveiliging)?
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.open(activeTab.url, '_blank', 'popup=yes,width=1100,height=820')}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs shrink-0 transition-all shadow cursor-pointer ml-2"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>⚡ Open in Veilig Venster</span>
+                </button>
+              </div>
+            )}
+
+            <iframe
+              key={iframeKey}
+              ref={iframeRef}
+              src={computeIframeSrc(activeTab.url)}
+              title={activeTab.title}
+              onLoad={() => setIsIframeLoading(false)}
+              className="w-full h-full border-0 flex-1"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals"
+            />
+          </div>
         )}
       </div>
 

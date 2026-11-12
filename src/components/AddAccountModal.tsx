@@ -109,10 +109,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({
   const handleOpenGoogleSignInInBrowser = () => {
     onClose();
     if (onOpenInBrowser) {
-      const signInUrl = email
-        ? `https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&flowEntry=ServiceLogin&Email=${encodeURIComponent(email)}`
-        : 'https://accounts.google.com/signin';
-      onOpenInBrowser(signInUrl);
+      onOpenInBrowser('#google-signin');
     }
   };
 
