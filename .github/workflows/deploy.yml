@@ -34,8 +34,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies without cache bloat
-        run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm install --legacy-peer-deps --no-audit --no-fund
+          else
+            npm install --legacy-peer-deps --no-audit --no-fund --no-package-lock
+          fi
 
       - name: Build static bundle for GitHub Pages
         run: npm run build
